@@ -1,0 +1,16 @@
+.newsletter-signup {
+  padding: 40px 0;
+}
+
+.newsletter-signup .newsletter-signup-placeholder {
+  min-height: 200px;
+  background-color: var(--light-color);
+  border-radius: 4px;
+}
+
+.newsletter-signup .newsletter-signup-iframe {
+  width: 100%;
+  border: none;
+  height: 600px;
+  display: block;
+}

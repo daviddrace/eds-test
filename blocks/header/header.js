@@ -1,5 +1,4 @@
 import { getMetadata } from '../../scripts/aem.js';
-import { loadFragment } from '../fragment/fragment.js';
 
 // media query match that indicates mobile/tablet width
 const isDesktop = window.matchMedia('(min-width: 900px)');
@@ -116,39 +115,149 @@ export default async function decorate(block) {
   // load nav as fragment
   const navMeta = getMetadata('nav');
   const navPath = navMeta ? new URL(navMeta, window.location).pathname : '/nav';
-  const fragment = await loadFragment(navPath);
+
+  let fragment = null;
+  try {
+    const resp = await fetch(`${navPath}.plain.html`);
+    if (resp.ok) {
+      const html = await resp.text();
+      const temp = document.createElement('div');
+      temp.innerHTML = html;
+      fragment = temp;
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn(`Failed to load nav fragment from ${navPath}:`, e);
+  }
 
   // decorate nav DOM
   block.textContent = '';
   const nav = document.createElement('nav');
   nav.id = 'nav';
-  while (fragment.firstElementChild) nav.append(fragment.firstElementChild);
 
-  const classes = ['brand', 'sections', 'tools'];
-  classes.forEach((c, i) => {
-    const section = nav.children[i];
-    if (section) section.classList.add(`nav-${c}`);
-  });
-
-  const navBrand = nav.querySelector('.nav-brand');
-  const brandLink = navBrand.querySelector('.button');
-  if (brandLink) {
-    brandLink.className = '';
-    brandLink.closest('.button-container').className = '';
+  if (!fragment) {
+    // Fragment failed to load, create empty nav
+    const navWrapper = document.createElement('div');
+    navWrapper.className = 'nav-wrapper';
+    navWrapper.append(nav);
+    block.append(navWrapper);
+    block.setAttribute('data-block-status', 'loaded');
+    return;
   }
 
-  const navSections = nav.querySelector('.nav-sections');
-  if (navSections) {
-    navSections.querySelectorAll(':scope .default-content-wrapper > ul > li').forEach((navSection) => {
-      if (navSection.querySelector('ul')) navSection.classList.add('nav-drop');
+  // Extract brand (first p), sections (ul), and tools (last p) from fragment
+  // Fragment may be wrapped in a div, so unwrap if needed
+  let fragmentChildren = [...fragment.children];
+  if (fragmentChildren.length === 1 && fragmentChildren[0].tagName === 'DIV') {
+    // Unwrap the div container
+    fragmentChildren = [...fragmentChildren[0].children];
+  }
+
+  if (fragmentChildren.length === 0) {
+    // Fragment has no children, create empty nav
+    const navWrapper = document.createElement('div');
+    navWrapper.className = 'nav-wrapper';
+    navWrapper.append(nav);
+    block.append(navWrapper);
+    block.setAttribute('data-block-status', 'loaded');
+    return;
+  }
+
+  const brand = fragmentChildren.find((el) => el.tagName === 'P');
+  const sections = fragmentChildren.find((el) => el.tagName === 'UL');
+  const tools = fragmentChildren.filter((el) => el.tagName === 'P').pop();
+
+  // Create nav structure
+  let sectionsDiv;
+  if (brand) {
+    const brandDiv = document.createElement('div');
+    brandDiv.classList.add('nav-brand');
+    const brandCopy = brand.cloneNode(true);
+    const brandLink = brandCopy.querySelector('a');
+    if (brandLink) {
+      const logo = document.createElement('img');
+      logo.src = `${window.hlx.codeBasePath}/icons/colgate-logo.svg`;
+      logo.alt = 'Colgate';
+      brandLink.textContent = '';
+      brandLink.append(logo);
+    }
+    brandDiv.append(brandCopy);
+    nav.append(brandDiv);
+  }
+
+  if (sections) {
+    sectionsDiv = document.createElement('div');
+    sectionsDiv.classList.add('nav-sections');
+    const sectionsCopy = sections.cloneNode(true);
+    const sectionsWrapper = document.createElement('div');
+    sectionsWrapper.classList.add('default-content-wrapper');
+    sectionsWrapper.append(sectionsCopy);
+    sectionsDiv.append(sectionsWrapper);
+    nav.append(sectionsDiv);
+
+    // Decorate nav items with dropdowns and wrap text in anchors
+    sectionsDiv.querySelectorAll(':scope .default-content-wrapper > ul > li').forEach((navSection) => {
+      const nestedUl = navSection.querySelector('ul');
+
+      // Extract text content before nested ul
+      let itemText = '';
+      Array.from(navSection.childNodes).some((node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          itemText += node.textContent.trim();
+        } else if (node.tagName === 'UL') {
+          return true; // break
+        } else if (node.nodeType === Node.ELEMENT_NODE && node.tagName !== 'UL') {
+          itemText += node.textContent.trim();
+        }
+        return false;
+      });
+
+      // Create anchor tag for the item
+      if (itemText && !navSection.querySelector(':scope > a')) {
+        const anchor = document.createElement('a');
+        anchor.href = '#';
+        anchor.textContent = itemText;
+
+        // Remove old text nodes and elements (except nested ul)
+        Array.from(navSection.childNodes).forEach((node) => {
+          if (node.nodeType === Node.TEXT_NODE || (node.nodeType === Node.ELEMENT_NODE && node.tagName !== 'UL')) {
+            node.remove();
+          }
+        });
+
+        navSection.prepend(anchor);
+      }
+
+      if (nestedUl) {
+        navSection.classList.add('nav-drop');
+        navSection.setAttribute('aria-expanded', 'false');
+      }
+
       navSection.addEventListener('click', () => {
         if (isDesktop.matches) {
           const expanded = navSection.getAttribute('aria-expanded') === 'true';
-          toggleAllNavSections(navSections);
+          toggleAllNavSections(sectionsDiv);
           navSection.setAttribute('aria-expanded', expanded ? 'false' : 'true');
         }
       });
     });
+  }
+
+  if (tools) {
+    const toolsDiv = document.createElement('div');
+    toolsDiv.classList.add('nav-tools');
+    const toolsCopy = tools.cloneNode(true);
+    const toolLink = toolsCopy.querySelector('a');
+    if (toolLink) {
+      const icon = document.createElement('img');
+      icon.src = `${window.hlx.codeBasePath}/icons/search.svg`;
+      icon.alt = 'Search';
+      toolLink.textContent = '';
+      toolLink.append(icon);
+      toolLink.setAttribute('aria-label', 'Search');
+    }
+    toolsDiv.append(toolsCopy);
+    nav.append(toolsDiv);
   }
 
   // hamburger for mobile
@@ -157,15 +266,17 @@ export default async function decorate(block) {
   hamburger.innerHTML = `<button type="button" aria-controls="nav" aria-label="Open navigation">
       <span class="nav-hamburger-icon"></span>
     </button>`;
-  hamburger.addEventListener('click', () => toggleMenu(nav, navSections));
+  hamburger.addEventListener('click', () => toggleMenu(nav, sectionsDiv));
   nav.prepend(hamburger);
   nav.setAttribute('aria-expanded', 'false');
   // prevent mobile nav behavior on window resize
-  toggleMenu(nav, navSections, isDesktop.matches);
-  isDesktop.addEventListener('change', () => toggleMenu(nav, navSections, isDesktop.matches));
+  toggleMenu(nav, sectionsDiv, isDesktop.matches);
+  isDesktop.addEventListener('change', () => toggleMenu(nav, sectionsDiv, isDesktop.matches));
 
   const navWrapper = document.createElement('div');
   navWrapper.className = 'nav-wrapper';
   navWrapper.append(nav);
   block.append(navWrapper);
+
+  block.setAttribute('data-block-status', 'loaded');
 }

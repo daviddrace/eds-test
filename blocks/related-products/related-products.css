@@ -1,0 +1,81 @@
+.related-products {
+  padding: 40px 0;
+}
+
+.related-products h2 {
+  font-size: var(--heading-font-size-l);
+  font-family: var(--heading-font-family);
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.related-products .related-products-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+
+@media (width >= 600px) {
+  .related-products .related-products-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.related-products .related-products-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+}
+
+.related-products .related-products-card-image {
+  width: 100%;
+}
+
+.related-products .related-products-card-image img {
+  width: 100%;
+  height: 180px;
+  object-fit: contain;
+  display: block;
+}
+
+.related-products .related-products-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+.related-products .related-products-card-title {
+  font-size: var(--body-font-size-xs);
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 0;
+  color: var(--text-color);
+}
+
+.related-products .related-products-stars {
+  font-size: var(--body-font-size-xs);
+  color: var(--brand-color);
+  min-height: 1.2em;
+}
+
+.related-products .related-products-card-body .button.primary {
+  font-size: 12px;
+  padding: 0.4em 1em;
+  background-color: var(--brand-color);
+  border-color: var(--brand-color);
+  border-radius: 2px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  width: 100%;
+  justify-content: center;
+}
+
+.related-products .related-products-card-body .button.primary:hover {
+  background-color: var(--brand-color-dark);
+  border-color: var(--brand-color-dark);
+}
